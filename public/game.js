@@ -33,7 +33,7 @@ function preload() {
     this.load.image('floor', 'https://labs.phaser.io/assets/skies/space3.png'); 
     
     // Load your local spritesheet (16x16 is the tile size)
-    this.load.spritesheet('furniture_sheet', 'furniture spritesheet.png', { 
+    this.load.spritesheet('furniture_sheet', 'furniture_spritesheet.png', { 
         frameWidth: 16, frameHeight: 16 
     });
     
@@ -218,18 +218,36 @@ function update() {
 }
 
 function addPlayer(self, info) {
+    // 1. Create the sprite and scale it to match the furniture
     const s = self.add.sprite(0, 0, 'player').setOrigin(0.5);
     s.setTint(info.color);
-    const l = self.add.text(0, -40, info.name, { fontSize: '14px', backgroundColor: '#000' }).setOrigin(0.5);
+    s.setScale(0.5); // Shrink the 'dude' sprite to fit the 16x16 world style
+
+    // 2. Adjust name label position for the smaller sprite
+    const l = self.add.text(0, -25, info.name, { 
+        fontSize: '12px', 
+        backgroundColor: '#000',
+        padding: { x: 4, y: 2 }
+    }).setOrigin(0.5);
+
+    // 3. Create container and set up tiny physics
     self.playerContainer = self.add.container(info.x, info.y, [s, l]);
     self.physics.world.enable(self.playerContainer);
-    self.playerContainer.body.setSize(32, 48).setOffset(-16, -24);
+    
+    // Adjust the hitbox to be a small square at the player's feet
+    self.playerContainer.body.setSize(20, 20).setOffset(-10, 0);
 }
 
 function addOtherPlayers(self, info) {
     const s = self.add.sprite(0, 0, 'player').setOrigin(0.5);
     s.setTint(info.color);
-    const l = self.add.text(0, -40, info.name, { fontSize: '12px', backgroundColor: '#333' }).setOrigin(0.5);
+    s.setScale(0.5); // Match the local player scale
+
+    const l = self.add.text(0, -25, info.name, { 
+        fontSize: '10px', 
+        backgroundColor: '#333' 
+    }).setOrigin(0.5);
+
     const c = self.add.container(info.x, info.y, [s, l]);
     c.playerId = info.id;
     self.otherPlayers.add(c);
