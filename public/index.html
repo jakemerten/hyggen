@@ -2,15 +2,101 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Hyggen - 8-Bit Hangout</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hyggen | 8-Bit Remote Hangout</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
+
     <style>
-        body { margin: 0; background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        canvas { box-shadow: 0 0 20px rgba(0,0,0,0.5); border: 4px solid #444; }
+        /* 1. Base Layout */
+        body {
+            margin: 0;
+            background-color: #1a1a1a;
+            color: #eee;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 2. The Main Container (Flexbox) */
+        #hyggen-layout {
+            display: flex;
+            flex-direction: row; /* Puts Game and Chat side-by-side */
+            gap: 15px;
+            background: #333;
+            padding: 15px;
+            border: 4px solid #444;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* 3. The Game Window */
+        #game-container {
+            width: 800px;
+            height: 600px;
+            background: #000;
+        }
+
+        /* 4. The Chat Window */
+        #chat-window {
+            width: 300px;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+            background: #222;
+            border: 2px solid #555;
+        }
+
+        #message-log {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.4;
+            color: #00ff00; /* Retro terminal green */
+        }
+
+        #chat-input {
+            background: #111;
+            border: none;
+            border-top: 2px solid #555;
+            color: #fff;
+            padding: 15px;
+            outline: none;
+            font-family: inherit;
+        }
+
+        #chat-input::placeholder {
+            color: #666;
+        }
+
+        /* Custom Scrollbar for the Retro Look */
+        #message-log::-webkit-scrollbar {
+            width: 8px;
+        }
+        #message-log::-webkit-scrollbar-thumb {
+            background: #444;
+        }
     </style>
 </head>
 <body>
+
+    <div id="hyggen-layout">
+        <div id="game-container"></div>
+
+        <div id="chat-window">
+            <div id="message-log">
+                <div style="color: #888;">Welcome to Hyggen. Work hard, stay cozy.</div>
+            </div>
+            <input type="text" id="chat-input" placeholder="Type a message..." maxlength="100">
+        </div>
+    </div>
+
     <script src="game.js"></script>
+
 </body>
 </html>

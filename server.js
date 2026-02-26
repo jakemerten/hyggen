@@ -40,6 +40,13 @@ io.on('connection', (socket) => {
         delete players[socket.id];
         io.emit('playerDisconnected', socket.id);
     });
+    socket.on('chatMessage', (message) => {
+        // We send it to EVERYONE, including the sender
+        io.emit('newMessage', {
+            id: socket.id,
+            message: message
+        });
+    });
 });
 
 // 8. Start the server on port 3000

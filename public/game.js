@@ -1,10 +1,11 @@
 const config = {
     type: Phaser.AUTO,
+    parent: 'game-container', // Matches the ID in your index.html
     width: 800,
     height: 600,
     physics: {
         default: 'arcade',
-        arcade: { gravity: { y: 0 } } // No gravity for a top-down room!
+        arcade: { gravity: { y: 0 } }
     },
     scene: { preload: preload, create: create, update: update }
 };
@@ -12,16 +13,21 @@ const config = {
 const game = new Phaser.Game(config);
 
 function preload() {
-    // Load a placeholder 8-bit character
-    this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { frameWidth: 32, frameHeight: 48 });
+    // Using a placeholder 8-bit character sheet
+    this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { 
+        frameWidth: 32, 
+        frameHeight: 48 
+    });
 }
 
 function create() {
     const self = this;
-    this.socket = io(); // Connect to your server.js
-    this.otherPlayers = this.physics.add.group(); // A group to hold your friends
+    this.socket = io();
+    this.otherPlayers = this.physics.add.group();
 
-    // 1. Ask the server who is already in the room
+    // --- 1. MULTIPLAYER SYNCING ---
+
+    // Load everyone already in the room
     this.socket.on('currentPlayers', (players) => {
         Object.keys(players).forEach((id) => {
             if (players[id].id === self.socket.id) {
@@ -32,12 +38,12 @@ function create() {
         });
     });
 
-    // 2. Listen for new people joining
+    // Handle new arrivals
     this.socket.on('newPlayer', (playerInfo) => {
         addOtherPlayers(self, playerInfo);
     });
 
-    // 3. Listen for people moving
+    // Move other people's characters on your screen
     this.socket.on('playerMoved', (playerInfo) => {
         self.otherPlayers.getChildren().forEach((otherPlayer) => {
             if (playerInfo.id === otherPlayer.playerId) {
@@ -46,34 +52,77 @@ function create() {
         });
     });
 
-    // 4. Listen for people leaving
+    // Remove people when they leave
     this.socket.on('playerDisconnected', (playerId) => {
         self.otherPlayers.getChildren().forEach((otherPlayer) => {
             if (playerId === otherPlayer.playerId) {
-                otherPlayer.destroy(); // Remove them from the screen
+                otherPlayer.destroy();
             }
         });
     });
 
-    // Setup keyboard arrows
+    // --- 2. CHAT SYSTEM LOGIC ---
+
+    const chatInput = document.getElementById('chat-input');
+    const messageLog = document.getElementById('message-log');
+
+    // FIX: Stop Phaser from "stealing" keys when you type in the box
+    chatInput.addEventListener('focus', () => { this.input.keyboard.enabled = false; });
+    chatInput.addEventListener('blur', () => { this.input.keyboard.enabled = true; });
+
+    // Handle sending messages
+    chatInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            const message = chatInput.value.trim();
+            if (message !== "") {
+                this.socket.emit('chatMessage', message);
+                chatInput.value = "";
+            }
+        }
+    });
+
+    // Handle receiving messages
+    this.socket.on('newMessage', (data) => {
+        const msgElement = document.createElement('div');
+        msgElement.innerHTML = `<strong>${data.id.substring(0, 5)}:</strong> ${data.message}`;
+        messageLog.appendChild(msgElement);
+        messageLog.scrollTop = messageLog.scrollHeight; // Auto-scroll
+    });
+
+    // Setup arrow keys
     this.cursors = this.input.keyboard.createCursorKeys();
 }
 
 function update() {
     if (this.player) {
-        // Handle Movement
-        if (this.cursors.left.isDown) this.player.x -= 4;
-        else if (this.cursors.right.isDown) this.player.x += 4;
+        let moved = false;
+        const speed = 4;
 
-        if (this.cursors.up.isDown) this.player.y -= 4;
-        else if (this.cursors.down.isDown) this.player.y += 4;
+        if (this.cursors.left.isDown) {
+            this.player.x -= speed;
+            moved = true;
+        } else if (this.cursors.right.isDown) {
+            this.player.x += speed;
+            moved = true;
+        }
 
-        // Tell the server your new position
-        this.socket.emit('playerMovement', { x: this.player.x, y: this.player.y });
+        if (this.cursors.up.isDown) {
+            this.player.y -= speed;
+            moved = true;
+        } else if (this.cursors.down.isDown) {
+            this.player.y += speed;
+            moved = true;
+        }
+
+        // Only tell the server if we actually moved
+        if (moved) {
+            this.socket.emit('playerMovement', { x: this.player.x, y: this.player.y });
+        }
     }
 }
 
-// HELPER FUNCTIONS
+// --- 3. HELPER FUNCTIONS ---
+
 function addPlayer(self, playerInfo) {
     self.player = self.physics.add.sprite(playerInfo.x, playerInfo.y, 'player').setOrigin(0.5, 0.5);
     self.player.setTint(playerInfo.color);
