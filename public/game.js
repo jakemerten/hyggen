@@ -1,6 +1,5 @@
 /**
- * game.js - Final Master Logic
- * Includes: Map Loader, Physics, Sync, Chat Fixes, and Interactions
+ * game.js - Final Multiplayer Master
  */
 
 const config = {
@@ -10,25 +9,18 @@ const config = {
     height: 600,
     physics: {
         default: 'arcade',
-        arcade: { 
-            gravity: { y: 0 },
-            debug: false // Set to true to see pink hitboxes for debugging
-        }
+        arcade: { gravity: { y: 0 }, debug: false }
     },
     input: {
-        keyboard: { 
-            capture: [37, 38, 39, 40, 69] // Arrows and 'E'
-        }
+        keyboard: { capture: [37, 38, 39, 40, 69] } 
     },
     scene: { preload: preload, create: create, update: update }
 };
 
 const game = new Phaser.Game(config);
 
-// 1. ASSET PRELOAD
 function preload() {
-    // If using local files, use 'assets/filename.png'
-    this.load.image('floor', 'https://play.phaser.io/assets/sprites/asuna_by_be_honakas.png'); 
+    this.load.image('floor', 'https://play.phaser.io/assets/skies/space3.png'); 
     this.load.image('chair', 'https://play.phaser.io/assets/sprites/chair.png'); 
     this.load.image('table', 'https://play.phaser.io/assets/sprites/treasure_chest.png'); 
     this.load.image('fireplace', 'https://play.phaser.io/assets/sprites/phaser-dude.png');
@@ -37,17 +29,15 @@ function preload() {
     });
 }
 
-// 2. CREATE WORLD
 function create() {
     const self = this;
     const TILE_W = 100;
     const TILE_H = 75;
 
-    // --- A. KEYBOARD RELAXATION ---
+    // 1. Initial Keyboard Relax (fixes "E" at login)
     this.input.keyboard.disableGlobalCapture();
 
-    // --- B. MAP LOADER ---
-    // 0: Floor, 1: Fireplace, 2: Table, 3: Chair
+    // 2. Map Loader (8x8 Grid)
     const roomMap = [
         [0, 0, 1, 1, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
@@ -81,45 +71,41 @@ function create() {
         });
     });
 
-    // --- C. INPUTS & HUD ---
+    // 3. UI & Inputs
     this.cursors = this.input.keyboard.createCursorKeys();
     this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.playerState = 'walking';
 
     this.interactPrompt = this.add.text(0, 0, '', {
-        fontSize: '16px', fill: '#fff', backgroundColor: '#000', padding: { x: 6, y: 4 }, fontStyle: 'bold'
+        fontSize: '14px', fill: '#fff', backgroundColor: '#000', padding: { x: 5, y: 3 }
     }).setOrigin(0.5).setDepth(100).setVisible(false);
 
-    // UI References
     const joinScreen = document.getElementById('join-screen');
     const joinButton = document.getElementById('join-button');
     const usernameInput = document.getElementById('username-input');
     const chatInput = document.getElementById('chat-input');
     const messageLog = document.getElementById('message-log');
 
-    // --- D. FOCUS FIXES ---
-    [usernameInput, chatInput].forEach(inputEl => {
-        inputEl.addEventListener('focus', () => {
-            self.input.keyboard.enabled = false;
-            self.input.keyboard.disableGlobalCapture();
+    // 4. Keyboard Capture Fixes
+    [usernameInput, chatInput].forEach(el => {
+        el.addEventListener('focus', () => { 
+            self.input.keyboard.enabled = false; 
+            self.input.keyboard.disableGlobalCapture(); 
         });
-        inputEl.addEventListener('blur', () => {
-            self.input.keyboard.enabled = true;
-            self.input.keyboard.enableGlobalCapture();
+        el.addEventListener('blur', () => { 
+            self.input.keyboard.enabled = true; 
+            self.input.keyboard.enableGlobalCapture(); 
         });
     });
 
-    // --- E. MULTIPLAYER CONNECTION ---
+    // 5. Connection Logic
     this.otherPlayers = this.add.group();
 
     joinButton.addEventListener('click', () => {
         const name = usernameInput.value.trim();
-        if (!name) return alert("Enter a name!");
-        
+        if (!name) return alert("Enter name");
         joinScreen.style.display = 'none';
-        document.getElementById('hyggen-layout').style.display = 'flex';
         self.input.keyboard.enableGlobalCapture();
-
         self.socket = io();
         self.socket.emit('joinRoom', { name: name });
 
@@ -143,18 +129,21 @@ function create() {
             });
         });
 
-        self.socket.on('newPlayer', (info) => addOtherPlayers(self, info));
         self.socket.on('playerMoved', (info) => {
             self.otherPlayers.getChildren().forEach(o => { if (info.id === o.playerId) o.setPosition(info.x, info.y); });
         });
-        self.socket.on('playerDisconnected', (id) => {
-            self.otherPlayers.getChildren().forEach(o => { if (id === o.playerId) o.destroy(); });
-        });
+
         self.socket.on('newMessage', (data) => {
+            const now = new Date();
+            const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const msg = document.createElement('div');
-            msg.innerHTML = `<strong style="color: #0f0;">${data.name}:</strong> ${data.message}`;
+            msg.innerHTML = `<span class="timestamp">[${time}]</span><span class="username">${data.name}:</span><span class="message-text">${data.message}</span>`;
             messageLog.appendChild(msg);
             messageLog.scrollTop = messageLog.scrollHeight;
+        });
+
+        self.socket.on('playerDisconnected', (id) => {
+            self.otherPlayers.getChildren().forEach(o => { if (id === o.playerId) o.destroy(); });
         });
     });
 
@@ -167,7 +156,6 @@ function create() {
     });
 }
 
-// 3. UPDATE LOOP
 function update() {
     if (!this.playerContainer || !this.input.keyboard.enabled) {
         if (this.interactPrompt) this.interactPrompt.setVisible(false);
@@ -202,7 +190,6 @@ function update() {
     }
 }
 
-// 4. HELPERS
 function addPlayer(self, info) {
     const s = self.add.sprite(0, 0, 'player').setOrigin(0.5);
     s.setTint(info.color);
