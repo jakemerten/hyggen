@@ -31,11 +31,11 @@ const game = new Phaser.Game(config);
 // 1. ASSET PRELOAD
 function preload() {
     // Using stable Labs URLs to prevent ERR_NAME_NOT_RESOLVED
-    this.load.image('floor', 'https://labs.phaser.io/assets/skies/space3.png'); 
-    this.load.image('chair', 'https://labs.phaser.io/assets/sprites/chair.png'); 
-    this.load.image('table', 'https://labs.phaser.io/assets/sprites/treasure_chest.png'); 
-    this.load.image('fireplace', 'https://labs.phaser.io/assets/sprites/phaser-dude.png');
-    this.load.image('couch', 'https://labs.phaser.io/assets/sprites/apple.png'); 
+    this.load.image('floor', 'assets/floor.png'); 
+    this.load.image('chair', 'assets/chair.png'); 
+    this.load.image('table', 'assets/table.png'); 
+    this.load.image('fireplace', 'assets/fireplace.png');
+    this.load.image('couch', 'assets/couch.png'); 
     
     this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { 
         frameWidth: 32, frameHeight: 48 
