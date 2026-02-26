@@ -9,17 +9,16 @@ const config = {
     parent: 'game-container',
     width: 800,
     height: 600,
-    pixelArt: true, // Keeps pixel art sharp
     physics: {
         default: 'arcade',
         arcade: { 
             gravity: { y: 0 },
-            debug: false 
+            debug: false // Set to true if you want to see the green hitboxes again
         }
     },
     input: {
         keyboard: { 
-            capture: [37, 38, 39, 40, 69] 
+            capture: [37, 38, 39, 40, 69] // Capture Arrows and the 'E' key
         }
     },
     scene: { preload: preload, create: create, update: update }
@@ -27,15 +26,16 @@ const config = {
 
 const game = new Phaser.Game(config);
 
+// 
+
 // 1. ASSET PRELOAD
 function preload() {
-    // Keep your floor fallback
+    // Using stable Labs URLs to prevent ERR_NAME_NOT_RESOLVED
     this.load.image('floor', 'https://labs.phaser.io/assets/skies/space3.png'); 
-    
-    // Load your local spritesheet (16x16 is the tile size)
-    this.load.spritesheet('furniture_sheet', 'furniture_spritesheet.png', { 
-        frameWidth: 16, frameHeight: 16 
-    });
+    this.load.image('chair', 'https://labs.phaser.io/assets/sprites/chair.png'); 
+    this.load.image('table', 'https://labs.phaser.io/assets/sprites/treasure_chest.png'); 
+    this.load.image('fireplace', 'https://labs.phaser.io/assets/sprites/phaser-dude.png');
+    this.load.image('couch', 'https://labs.phaser.io/assets/sprites/apple.png'); 
     
     this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { 
         frameWidth: 32, frameHeight: 48 
@@ -48,18 +48,23 @@ function create() {
     const TILE_W = 100;
     const TILE_H = 75;
 
+    // A. Initial Keyboard Relaxation
     this.input.keyboard.disableGlobalCapture();
 
+    // B. The 8x8 Map Layout
+    // 0: Floor, 1: Fireplace, 2: Table, 3: Sit-able (Chair/Couch/Armchair)
     const roomMap = [
-        [0, 0, 1, 1, 1, 1, 0, 0], 
-        [0, 3, 0, 0, 0, 0, 3, 3], 
-        [0, 0, 0, 0, 0, 0, 0, 0], 
-        [0, 0, 0, 3, 0, 0, 0, 0], 
-        [0, 0, 3, 2, 2, 3, 0, 0], 
-        [0, 0, 0, 3, 0, 0, 0, 0], 
-        [0, 0, 0, 0, 0, 0, 0, 0], 
-        [0, 0, 0, 0, 0, 0, 0, 0]
+        [0, 0, 1, 1, 1, 1, 0, 0], // Row 0: Fireplace
+        [0, 3, 0, 0, 0, 0, 3, 3], // Row 1: Armchair (L) and 2-tile Couch (R)
+        [0, 0, 0, 0, 0, 0, 0, 0], // Row 2: Empty
+        [0, 0, 0, 3, 0, 0, 0, 0], // Row 3: Table Top Chair
+        [0, 0, 3, 2, 2, 3, 0, 0], // Row 4: Side Chairs + Table
+        [0, 0, 0, 3, 0, 0, 0, 0], // Row 5: Table Bottom Chair
+        [0, 0, 0, 0, 0, 0, 0, 0], // Row 6: Empty
+        [0, 0, 0, 0, 0, 0, 0, 0]  // Row 7: Empty
     ];
+
+    // 
 
     this.furniture = this.physics.add.staticGroup();
     this.chairs = this.add.group();
@@ -70,24 +75,26 @@ function create() {
             const x = (cIdx * TILE_W) + (TILE_W / 2);
             const y = (rIdx * TILE_H) + (TILE_H / 2);
 
-            // Layer 1: Floor
+            // Layer 1: Fallback Shapes (Visible even if images fail)
             this.add.rectangle(x, y, TILE_W, TILE_H, 0x222222).setStrokeStyle(1, 0x333333);
+
+            // Layer 2: The Images
             this.add.image(x, y, 'floor').setDisplaySize(TILE_W, TILE_H);
 
             if (tile === 1) { // FIREPLACE
-                // Frame 4: Stone Fireplace
-                this.furniture.create(x, y, 'furniture_sheet', 4).setScale(4.5).refreshBody();
+                this.add.rectangle(x, y, TILE_W, TILE_H, 0xff4400, 0.5); // Fallback orange
+                this.furniture.create(x, y, 'fireplace').setDisplaySize(TILE_W, TILE_H).refreshBody();
             } 
             else if (tile === 2) { // TABLE
-                // Frame 18: Wooden Table
-                this.furniture.create(x, y, 'furniture_sheet', 18).setScale(4.5).refreshBody();
+                this.add.rectangle(x, y, TILE_W, TILE_H, 0x442200, 0.8); // Fallback brown
+                this.furniture.create(x, y, 'table').refreshBody();
             } 
-            else if (tile === 3) { // CHAIR / COUCH
+            else if (tile === 3) { // CHAIRS / COUCH
                 interactableCount++;
-                let frame = 135; // Standard Chair
-                if (rIdx === 1 && cIdx > 5) frame = 81; // Couch/Bench
+                let texture = (rIdx === 1 && cIdx > 5) ? 'couch' : 'chair';
                 
-                const sitPlace = this.add.sprite(x, y, 'furniture_sheet', frame).setScale(4);
+                this.add.circle(x, y, 15, 0x666666); // Fallback gray circle
+                const sitPlace = this.add.sprite(x, y, texture);
                 sitPlace.setData({ id: interactableCount, occupied: false });
                 this.chairs.add(sitPlace);
             }
@@ -110,7 +117,7 @@ function create() {
     const chatInput = document.getElementById('chat-input');
     const messageLog = document.getElementById('message-log');
 
-    // Focus Fixes
+    // D. KEYBOARD FOCUS FIXES (The "E" Fix)
     [usernameInput, chatInput].forEach(el => {
         el.addEventListener('focus', () => { 
             self.input.keyboard.enabled = false; 
@@ -183,11 +190,14 @@ function create() {
     });
 }
 
+// 3. UPDATE LOOP
 function update() {
     if (!this.playerContainer || !this.input.keyboard.enabled) {
         if (this.interactPrompt) this.interactPrompt.setVisible(false);
         return;
     }
+
+    // 
 
     this.interactPrompt.setVisible(false);
 
@@ -217,37 +227,20 @@ function update() {
     }
 }
 
+// 4. HELPERS
 function addPlayer(self, info) {
-    // 1. Create the sprite and scale it to match the furniture
     const s = self.add.sprite(0, 0, 'player').setOrigin(0.5);
     s.setTint(info.color);
-    s.setScale(0.5); // Shrink the 'dude' sprite to fit the 16x16 world style
-
-    // 2. Adjust name label position for the smaller sprite
-    const l = self.add.text(0, -25, info.name, { 
-        fontSize: '12px', 
-        backgroundColor: '#000',
-        padding: { x: 4, y: 2 }
-    }).setOrigin(0.5);
-
-    // 3. Create container and set up tiny physics
+    const l = self.add.text(0, -40, info.name, { fontSize: '14px', backgroundColor: '#000' }).setOrigin(0.5);
     self.playerContainer = self.add.container(info.x, info.y, [s, l]);
     self.physics.world.enable(self.playerContainer);
-    
-    // Adjust the hitbox to be a small square at the player's feet
-    self.playerContainer.body.setSize(20, 20).setOffset(-10, 0);
+    self.playerContainer.body.setSize(32, 48).setOffset(-16, -24);
 }
 
 function addOtherPlayers(self, info) {
     const s = self.add.sprite(0, 0, 'player').setOrigin(0.5);
     s.setTint(info.color);
-    s.setScale(0.5); // Match the local player scale
-
-    const l = self.add.text(0, -25, info.name, { 
-        fontSize: '10px', 
-        backgroundColor: '#333' 
-    }).setOrigin(0.5);
-
+    const l = self.add.text(0, -40, info.name, { fontSize: '12px', backgroundColor: '#333' }).setOrigin(0.5);
     const c = self.add.container(info.x, info.y, [s, l]);
     c.playerId = info.id;
     self.otherPlayers.add(c);
