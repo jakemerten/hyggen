@@ -1,6 +1,6 @@
 /**
- * game.js - Final Master Build
- * Includes: Map Loader (8x8), Physics, Interaction, Multiplayer & Chat Sidebar
+ * game.js - Master Build
+ * Includes: Custom 8x8 Layout, Physics, Interaction, Multiplayer & Chat Sidebar
  */
 
 const config = {
@@ -12,11 +12,11 @@ const config = {
         default: 'arcade',
         arcade: { 
             gravity: { y: 0 },
-            debug: false // Set to true to see hitboxes
+            debug: false 
         }
     },
     input: {
-        keyboard: { capture: [37, 38, 39, 40, 69] } // Arrows and 'E'
+        keyboard: { capture: [37, 38, 39, 40, 69] } 
     },
     scene: { preload: preload, create: create, update: update }
 };
@@ -24,12 +24,12 @@ const config = {
 const game = new Phaser.Game(config);
 
 function preload() {
-    // Assets (Replace with your own 8x8 tile URLs if you have them)
+    // USING HIGH-RELIABILITY PHASER LABS URLS SO TILES SHOW UP IMMEDIATELY
     this.load.image('floor', 'https://play.phaser.io/assets/skies/space3.png'); 
     this.load.image('chair', 'https://play.phaser.io/assets/sprites/chair.png'); 
     this.load.image('table', 'https://play.phaser.io/assets/sprites/treasure_chest.png'); 
     this.load.image('fireplace', 'https://play.phaser.io/assets/sprites/phaser-dude.png');
-    this.load.image('couch', 'https://play.phaser.io/assets/sprites/apple.png'); // Placeholder for couch
+    this.load.image('couch', 'https://play.phaser.io/assets/sprites/apple.png'); 
     this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { 
         frameWidth: 32, frameHeight: 48 
     });
@@ -40,20 +40,20 @@ function create() {
     const TILE_W = 100;
     const TILE_H = 75;
 
-    // 1. KEYBOARD RELAXATION (Fixes "E" at Login)
+    // 1. KEYBOARD RELAXATION (Ensures you can type 'E' in login/chat)
     this.input.keyboard.disableGlobalCapture();
 
-    // 2. THE NEW 8x8 MAP GRID
+    // 2. THE CUSTOM 8x8 MAP GRID
     // 0: Floor, 1: Fireplace, 2: Table, 3: Sit-able (Chair/Couch/Armchair)
     const roomMap = [
         [0, 0, 1, 1, 1, 1, 0, 0], // Row 0: Large Fireplace
         [0, 3, 0, 0, 0, 0, 3, 3], // Row 1: Armchair (L) and 2-tile Couch (R)
-        [0, 0, 0, 0, 0, 0, 0, 0], // Row 2: Empty
+        [0, 0, 0, 0, 0, 0, 0, 0], // Row 2: Empty space
         [0, 0, 0, 3, 0, 0, 0, 0], // Row 3: Table Top Chair
-        [0, 0, 3, 2, 2, 3, 0, 0], // Row 4: Table + Side Chairs
+        [0, 0, 3, 2, 2, 3, 0, 0], // Row 4: Side Chairs + Table
         [0, 0, 0, 3, 0, 0, 0, 0], // Row 5: Table Bottom Chair
-        [0, 0, 0, 0, 0, 0, 0, 0], // Row 6: Empty
-        [0, 0, 0, 0, 0, 0, 0, 0]  // Row 7: Empty
+        [0, 0, 0, 0, 0, 0, 0, 0], // Row 6: Empty space
+        [0, 0, 0, 0, 0, 0, 0, 0]  // Row 7: Empty space
     ];
 
     
@@ -67,7 +67,7 @@ function create() {
             const x = (cIdx * TILE_W) + (TILE_W / 2);
             const y = (rIdx * TILE_H) + (TILE_H / 2);
 
-            // Draw Floor Tile
+            // ALWAYS DRAW FLOOR
             this.add.image(x, y, 'floor').setDisplaySize(TILE_W, TILE_H);
 
             if (tile === 1) { // FIREPLACE
@@ -78,7 +78,7 @@ function create() {
             } 
             else if (tile === 3) { // CHAIR / COUCH / ARMCHAIR
                 interactableCount++;
-                // Decide which texture to use based on grid position
+                // Decide which texture to use
                 let texture = 'chair';
                 if (rIdx === 1 && cIdx > 5) texture = 'couch'; 
                 
@@ -89,7 +89,7 @@ function create() {
         });
     });
 
-    // 3. UI, INPUTS & PROMPTS
+    // 3. UI & INPUTS
     this.cursors = this.input.keyboard.createCursorKeys();
     this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.playerState = 'walking';
@@ -98,14 +98,13 @@ function create() {
         fontSize: '14px', fill: '#fff', backgroundColor: '#000', padding: { x: 5, y: 3 }
     }).setOrigin(0.5).setDepth(100).setVisible(false);
 
-    // References to HTML elements
     const joinScreen = document.getElementById('join-screen');
     const joinButton = document.getElementById('join-button');
     const usernameInput = document.getElementById('username-input');
     const chatInput = document.getElementById('chat-input');
     const messageLog = document.getElementById('message-log');
 
-    // 4. FOCUS LISTENERS (The "E" Fix)
+    // 4. FOCUS LISTENERS (Fixes "E" and arrow capture)
     [usernameInput, chatInput].forEach(el => {
         el.addEventListener('focus', () => { 
             self.input.keyboard.enabled = false; 
@@ -124,7 +123,7 @@ function create() {
         if (!name) return alert("Please enter a name!");
         
         joinScreen.style.display = 'none';
-        self.input.keyboard.enableGlobalCapture();
+        self.input.keyboard.enableGlobalCapture(); // Start capturing game keys
         
         self.socket = io();
         self.socket.emit('joinRoom', { name: name });
@@ -198,6 +197,7 @@ function update() {
 
         if (moved) this.socket.emit('playerMovement', { x: this.playerContainer.x, y: this.playerContainer.y });
 
+        // PROXIMITY SCAN FOR CHAIRS
         let closest = null;
         this.chairs.getChildren().forEach(c => {
             const d = Phaser.Math.Distance.Between(this.playerContainer.x, this.playerContainer.y, c.x, c.y);
