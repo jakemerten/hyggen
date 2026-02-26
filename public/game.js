@@ -1,6 +1,6 @@
 /**
- * game.js - Master Version
- * Features: Sidebar Chat, E-to-Interact, Map Loader, and Keyboard Fixes
+ * game.js - Final Master Build
+ * Includes: Map Loader (8x8), Physics, Interaction, Multiplayer & Chat Sidebar
  */
 
 const config = {
@@ -10,10 +10,13 @@ const config = {
     height: 600,
     physics: {
         default: 'arcade',
-        arcade: { gravity: { y: 0 }, debug: false }
+        arcade: { 
+            gravity: { y: 0 },
+            debug: false // Set to true to see hitboxes
+        }
     },
     input: {
-        keyboard: { capture: [37, 38, 39, 40, 69] } // 69 is the 'E' key
+        keyboard: { capture: [37, 38, 39, 40, 69] } // Arrows and 'E'
     },
     scene: { preload: preload, create: create, update: update }
 };
@@ -21,10 +24,12 @@ const config = {
 const game = new Phaser.Game(config);
 
 function preload() {
+    // Assets (Replace with your own 8x8 tile URLs if you have them)
     this.load.image('floor', 'https://play.phaser.io/assets/skies/space3.png'); 
     this.load.image('chair', 'https://play.phaser.io/assets/sprites/chair.png'); 
     this.load.image('table', 'https://play.phaser.io/assets/sprites/treasure_chest.png'); 
     this.load.image('fireplace', 'https://play.phaser.io/assets/sprites/phaser-dude.png');
+    this.load.image('couch', 'https://play.phaser.io/assets/sprites/apple.png'); // Placeholder for couch
     this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { 
         frameWidth: 32, frameHeight: 48 
     });
@@ -35,57 +40,72 @@ function create() {
     const TILE_W = 100;
     const TILE_H = 75;
 
-    // 1. KEYBOARD SETUP
-    this.input.keyboard.disableGlobalCapture(); // Allow typing at login
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    this.playerState = 'walking'; // 'walking' or 'sitting'
+    // 1. KEYBOARD RELAXATION (Fixes "E" at Login)
+    this.input.keyboard.disableGlobalCapture();
 
-    // 2. MAP LOADER
+    // 2. THE NEW 8x8 MAP GRID
+    // 0: Floor, 1: Fireplace, 2: Table, 3: Sit-able (Chair/Couch/Armchair)
     const roomMap = [
-        [0, 0, 1, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 2, 2, 2, 0, 0, 0],
-        [0, 3, 2, 2, 2, 3, 0, 0],
-        [0, 0, 2, 2, 2, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 0]
+        [0, 0, 1, 1, 1, 1, 0, 0], // Row 0: Large Fireplace
+        [0, 3, 0, 0, 0, 0, 3, 3], // Row 1: Armchair (L) and 2-tile Couch (R)
+        [0, 0, 0, 0, 0, 0, 0, 0], // Row 2: Empty
+        [0, 0, 0, 3, 0, 0, 0, 0], // Row 3: Table Top Chair
+        [0, 0, 3, 2, 2, 3, 0, 0], // Row 4: Table + Side Chairs
+        [0, 0, 0, 3, 0, 0, 0, 0], // Row 5: Table Bottom Chair
+        [0, 0, 0, 0, 0, 0, 0, 0], // Row 6: Empty
+        [0, 0, 0, 0, 0, 0, 0, 0]  // Row 7: Empty
     ];
+
+    
 
     this.furniture = this.physics.add.staticGroup();
     this.chairs = this.add.group();
-    let chairCount = 0;
+    let interactableCount = 0;
 
     roomMap.forEach((row, rIdx) => {
         row.forEach((tile, cIdx) => {
             const x = (cIdx * TILE_W) + (TILE_W / 2);
             const y = (rIdx * TILE_H) + (TILE_H / 2);
+
+            // Draw Floor Tile
             this.add.image(x, y, 'floor').setDisplaySize(TILE_W, TILE_H);
 
-            if (tile === 1) {
-                this.furniture.create(x, y, 'fireplace').setDisplaySize(TILE_W*2, TILE_H*2).refreshBody();
-            } else if (tile === 2) {
+            if (tile === 1) { // FIREPLACE
+                this.furniture.create(x, y, 'fireplace').setDisplaySize(TILE_W, TILE_H).refreshBody();
+            } 
+            else if (tile === 2) { // TABLE
                 this.furniture.create(x, y, 'table').refreshBody();
-            } else if (tile === 3) {
-                chairCount++;
-                const chair = this.add.sprite(x, y, 'chair').setData({ id: chairCount, occupied: false });
-                this.chairs.add(chair);
+            } 
+            else if (tile === 3) { // CHAIR / COUCH / ARMCHAIR
+                interactableCount++;
+                // Decide which texture to use based on grid position
+                let texture = 'chair';
+                if (rIdx === 1 && cIdx > 5) texture = 'couch'; 
+                
+                const sitPlace = this.add.sprite(x, y, texture);
+                sitPlace.setData({ id: interactableCount, occupied: false });
+                this.chairs.add(sitPlace);
             }
         });
     });
 
-    // 3. INTERACTION PROMPT (Floating Text)
+    // 3. UI, INPUTS & PROMPTS
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.playerState = 'walking';
+
     this.interactPrompt = this.add.text(0, 0, '', {
         fontSize: '14px', fill: '#fff', backgroundColor: '#000', padding: { x: 5, y: 3 }
     }).setOrigin(0.5).setDepth(100).setVisible(false);
 
-    // 4. UI REFERENCES & FOCUS FIXES
+    // References to HTML elements
+    const joinScreen = document.getElementById('join-screen');
+    const joinButton = document.getElementById('join-button');
     const usernameInput = document.getElementById('username-input');
     const chatInput = document.getElementById('chat-input');
-    const joinButton = document.getElementById('join-button');
     const messageLog = document.getElementById('message-log');
 
+    // 4. FOCUS LISTENERS (The "E" Fix)
     [usernameInput, chatInput].forEach(el => {
         el.addEventListener('focus', () => { 
             self.input.keyboard.enabled = false; 
@@ -103,7 +123,7 @@ function create() {
         const name = usernameInput.value.trim();
         if (!name) return alert("Please enter a name!");
         
-        document.getElementById('join-screen').style.display = 'none';
+        joinScreen.style.display = 'none';
         self.input.keyboard.enableGlobalCapture();
         
         self.socket = io();
@@ -130,7 +150,9 @@ function create() {
         });
 
         self.socket.on('playerMoved', (info) => {
-            self.otherPlayers.getChildren().forEach(o => { if (info.id === o.playerId) o.setPosition(info.x, info.y); });
+            self.otherPlayers.getChildren().forEach(o => { 
+                if (info.id === o.playerId) o.setPosition(info.x, info.y); 
+            });
         });
 
         self.socket.on('newMessage', (data) => {
@@ -155,17 +177,18 @@ function create() {
     });
 }
 
-// 6. UPDATE LOOP (The Brain of the Interaction)
+// 6. UPDATE LOOP
 function update() {
     if (!this.playerContainer || !this.input.keyboard.enabled) {
         if (this.interactPrompt) this.interactPrompt.setVisible(false);
         return;
     }
 
+    
+
     this.interactPrompt.setVisible(false);
 
     if (this.playerState === 'walking') {
-        // MOVEMENT
         let moved = false;
         const speed = 4;
         if (this.cursors.left.isDown) { this.playerContainer.x -= speed; moved = true; }
@@ -175,27 +198,19 @@ function update() {
 
         if (moved) this.socket.emit('playerMovement', { x: this.playerContainer.x, y: this.playerContainer.y });
 
-        // INTERACTION SCAN
-        let closestChair = null;
-        this.chairs.getChildren().forEach(chair => {
-            const dist = Phaser.Math.Distance.Between(this.playerContainer.x, this.playerContainer.y, chair.x, chair.y);
-            if (dist < 50 && !chair.getData('occupied')) {
-                closestChair = chair;
-            }
+        let closest = null;
+        this.chairs.getChildren().forEach(c => {
+            const d = Phaser.Math.Distance.Between(this.playerContainer.x, this.playerContainer.y, c.x, c.y);
+            if (d < 50 && !c.getData('occupied')) closest = c;
         });
 
-        if (closestChair) {
-            this.interactPrompt.setPosition(closestChair.x, closestChair.y - 40).setText('[E] SIT').setVisible(true);
-            if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
-                sitDown(this, closestChair);
-            }
+        if (closest) {
+            this.interactPrompt.setPosition(closest.x, closest.y - 40).setText('[E] SIT').setVisible(true);
+            if (Phaser.Input.Keyboard.JustDown(this.interactKey)) sitDown(this, closest);
         }
-    } 
-    else if (this.playerState === 'sitting') {
+    } else if (this.playerState === 'sitting') {
         this.interactPrompt.setPosition(this.playerContainer.x, this.playerContainer.y - 60).setText('[E] STAND').setVisible(true);
-        if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
-            standUp(this);
-        }
+        if (Phaser.Input.Keyboard.JustDown(this.interactKey)) standUp(this);
     }
 }
 
@@ -228,7 +243,7 @@ function sitDown(self, chair) {
 
 function standUp(self) {
     self.playerState = 'walking';
-    self.playerContainer.y += 40; // Step out of the chair radius
+    self.playerContainer.y += 40; 
     self.socket.emit('interact', { action: 'stand' });
     self.socket.emit('playerMovement', { x: self.playerContainer.x, y: self.playerContainer.y });
     self.currentChair = null;
