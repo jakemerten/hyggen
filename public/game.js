@@ -40,16 +40,14 @@ function preload() {
 function create() {
     const self = this;
 
-    function create() {
-    const self = this;
-
-    // 1. ADD BACKGROUND FIRST (so it's at the bottom layer)
-    // We place it at 400, 300 because images are placed by their center by default
+    // 1. PLACE THIS HERE (Outside the join listener)
+    // Using a guaranteed-to-work Phaser test image
     this.add.image(400, 300, 'background').setDisplaySize(800, 600);
 
-    // ... rest of your UI references (joinScreen, joinButton, etc.)
+    // 2. Everything else follows...
     const joinScreen = document.getElementById('join-screen');
-    // ...
+    const joinButton = document.getElementById('join-button');
+    // ... rest of your code
 }
 
     // UI References
