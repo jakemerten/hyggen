@@ -1,5 +1,6 @@
 /**
- * game.js - Final Multiplayer Master
+ * game.js - Master Version
+ * Features: Sidebar Chat, E-to-Interact, Map Loader, and Keyboard Fixes
  */
 
 const config = {
@@ -12,7 +13,7 @@ const config = {
         arcade: { gravity: { y: 0 }, debug: false }
     },
     input: {
-        keyboard: { capture: [37, 38, 39, 40, 69] } 
+        keyboard: { capture: [37, 38, 39, 40, 69] } // 69 is the 'E' key
     },
     scene: { preload: preload, create: create, update: update }
 };
@@ -34,10 +35,13 @@ function create() {
     const TILE_W = 100;
     const TILE_H = 75;
 
-    // 1. Initial Keyboard Relax (fixes "E" at login)
-    this.input.keyboard.disableGlobalCapture();
+    // 1. KEYBOARD SETUP
+    this.input.keyboard.disableGlobalCapture(); // Allow typing at login
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.playerState = 'walking'; // 'walking' or 'sitting'
 
-    // 2. Map Loader (8x8 Grid)
+    // 2. MAP LOADER
     const roomMap = [
         [0, 0, 1, 1, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0],
@@ -71,22 +75,17 @@ function create() {
         });
     });
 
-    // 3. UI & Inputs
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    this.playerState = 'walking';
-
+    // 3. INTERACTION PROMPT (Floating Text)
     this.interactPrompt = this.add.text(0, 0, '', {
         fontSize: '14px', fill: '#fff', backgroundColor: '#000', padding: { x: 5, y: 3 }
     }).setOrigin(0.5).setDepth(100).setVisible(false);
 
-    const joinScreen = document.getElementById('join-screen');
-    const joinButton = document.getElementById('join-button');
+    // 4. UI REFERENCES & FOCUS FIXES
     const usernameInput = document.getElementById('username-input');
     const chatInput = document.getElementById('chat-input');
+    const joinButton = document.getElementById('join-button');
     const messageLog = document.getElementById('message-log');
 
-    // 4. Keyboard Capture Fixes
     [usernameInput, chatInput].forEach(el => {
         el.addEventListener('focus', () => { 
             self.input.keyboard.enabled = false; 
@@ -98,14 +97,15 @@ function create() {
         });
     });
 
-    // 5. Connection Logic
+    // 5. CONNECTION LOGIC
     this.otherPlayers = this.add.group();
-
     joinButton.addEventListener('click', () => {
         const name = usernameInput.value.trim();
-        if (!name) return alert("Enter name");
-        joinScreen.style.display = 'none';
+        if (!name) return alert("Please enter a name!");
+        
+        document.getElementById('join-screen').style.display = 'none';
         self.input.keyboard.enableGlobalCapture();
+        
         self.socket = io();
         self.socket.emit('joinRoom', { name: name });
 
@@ -134,8 +134,7 @@ function create() {
         });
 
         self.socket.on('newMessage', (data) => {
-            const now = new Date();
-            const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const msg = document.createElement('div');
             msg.innerHTML = `<span class="timestamp">[${time}]</span><span class="username">${data.name}:</span><span class="message-text">${data.message}</span>`;
             messageLog.appendChild(msg);
@@ -156,6 +155,7 @@ function create() {
     });
 }
 
+// 6. UPDATE LOOP (The Brain of the Interaction)
 function update() {
     if (!this.playerContainer || !this.input.keyboard.enabled) {
         if (this.interactPrompt) this.interactPrompt.setVisible(false);
@@ -165,6 +165,7 @@ function update() {
     this.interactPrompt.setVisible(false);
 
     if (this.playerState === 'walking') {
+        // MOVEMENT
         let moved = false;
         const speed = 4;
         if (this.cursors.left.isDown) { this.playerContainer.x -= speed; moved = true; }
@@ -174,22 +175,31 @@ function update() {
 
         if (moved) this.socket.emit('playerMovement', { x: this.playerContainer.x, y: this.playerContainer.y });
 
-        let closest = null;
-        this.chairs.getChildren().forEach(c => {
-            const d = Phaser.Math.Distance.Between(this.playerContainer.x, this.playerContainer.y, c.x, c.y);
-            if (d < 50 && !c.getData('occupied')) closest = c;
+        // INTERACTION SCAN
+        let closestChair = null;
+        this.chairs.getChildren().forEach(chair => {
+            const dist = Phaser.Math.Distance.Between(this.playerContainer.x, this.playerContainer.y, chair.x, chair.y);
+            if (dist < 50 && !chair.getData('occupied')) {
+                closestChair = chair;
+            }
         });
 
-        if (closest) {
-            this.interactPrompt.setPosition(closest.x, closest.y - 40).setText('[E] SIT').setVisible(true);
-            if (Phaser.Input.Keyboard.JustDown(this.interactKey)) sitDown(this, closest);
+        if (closestChair) {
+            this.interactPrompt.setPosition(closestChair.x, closestChair.y - 40).setText('[E] SIT').setVisible(true);
+            if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+                sitDown(this, closestChair);
+            }
         }
-    } else if (this.playerState === 'sitting') {
+    } 
+    else if (this.playerState === 'sitting') {
         this.interactPrompt.setPosition(this.playerContainer.x, this.playerContainer.y - 60).setText('[E] STAND').setVisible(true);
-        if (Phaser.Input.Keyboard.JustDown(this.interactKey)) standUp(this);
+        if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+            standUp(this);
+        }
     }
 }
 
+// 7. HELPERS
 function addPlayer(self, info) {
     const s = self.add.sprite(0, 0, 'player').setOrigin(0.5);
     s.setTint(info.color);
@@ -218,7 +228,7 @@ function sitDown(self, chair) {
 
 function standUp(self) {
     self.playerState = 'walking';
-    self.playerContainer.y += 40;
+    self.playerContainer.y += 40; // Step out of the chair radius
     self.socket.emit('interact', { action: 'stand' });
     self.socket.emit('playerMovement', { x: self.playerContainer.x, y: self.playerContainer.y });
     self.currentChair = null;
