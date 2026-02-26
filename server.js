@@ -3,46 +3,81 @@ const app = express();
 const server = require('http').Server(app);
 const io = require('socket.io')(server);
 
-// 1. Static Files
 app.use(express.static(__dirname + '/public'));
 
-// 2. Game State
+// 1. Updated State: Track players AND chair status
 let players = {}; 
+let chairs = {
+    1: { occupied: false, occupantId: null },
+    2: { occupied: false, occupantId: null }
+};
 
 io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
+    console.log('User connected:', socket.id);
 
-    // --- JOIN LOGIC ---
     socket.on('joinRoom', (data) => {
-        // Create the player object
         players[socket.id] = {
             x: 400,
             y: 300,
             id: socket.id,
             name: data.name || "Guest", 
-            color: Math.random() * 0xffffff
+            color: Math.random() * 0xffffff,
+            isSitting: false
         };
 
-        // Send current players to the NEW player
+        // Send current players AND chair states to the new user
         socket.emit('currentPlayers', players);
+        socket.emit('chairStates', chairs); 
 
-        // Tell EVERYONE ELSE a new player joined
         socket.broadcast.emit('newPlayer', players[socket.id]);
     });
 
-    // --- MOVEMENT LOGIC ---
+    // 2. NEW: Handle Interaction (Sit/Stand)
+    socket.on('interact', (data) => {
+        if (!players[socket.id]) return;
+
+        if (data.action === 'sit') {
+            const chair = chairs[data.chairId];
+            
+            // Only allow sitting if the chair is actually empty
+            if (chair && !chair.occupied) {
+                chair.occupied = true;
+                chair.occupantId = socket.id;
+                players[socket.id].isSitting = true;
+
+                // Tell everyone that this chair is now taken
+                io.emit('chairUpdate', { 
+                    chairId: data.chairId, 
+                    occupied: true, 
+                    playerId: socket.id 
+                });
+            }
+        } 
+        
+        else if (data.action === 'stand') {
+            players[socket.id].isSitting = false;
+            
+            // Find which chair this player was in and free it
+            Object.keys(chairs).forEach(id => {
+                if (chairs[id].occupantId === socket.id) {
+                    chairs[id].occupied = false;
+                    chairs[id].occupantId = null;
+                    io.emit('chairUpdate', { chairId: id, occupied: false });
+                }
+            });
+        }
+    });
+
     socket.on('playerMovement', (movementData) => {
-        if (players[socket.id]) { // Safety check
+        if (players[socket.id] && !players[socket.id].isSitting) { 
             players[socket.id].x = movementData.x;
             players[socket.id].y = movementData.y;
-            // Tell everyone else this player moved
             socket.broadcast.emit('playerMoved', players[socket.id]);
         }
     });
 
-    // --- CHAT LOGIC ---
     socket.on('chatMessage', (message) => {
-        if (players[socket.id]) { // Safety check to ensure they joined
+        if (players[socket.id]) {
             io.emit('newMessage', {
                 name: players[socket.id].name,
                 message: message
@@ -50,18 +85,21 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- DISCONNECT LOGIC ---
     socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-        if (players[socket.id]) {
-            delete players[socket.id];
-            io.emit('playerDisconnected', socket.id);
-        }
+        // If they were sitting, free the chair before they vanish
+        Object.keys(chairs).forEach(id => {
+            if (chairs[id].occupantId === socket.id) {
+                chairs[id].occupied = false;
+                chairs[id].occupantId = null;
+                io.emit('chairUpdate', { chairId: id, occupied: false });
+            }
+        });
+
+        delete players[socket.id];
+        io.emit('playerDisconnected', socket.id);
     });
 });
 
-// 3. Start Server
-const PORT = 3000;
-server.listen(PORT, () => {
-    console.log(`Hyggen is live! Visit: http://localhost:${PORT}`);
+server.listen(3000, () => {
+    console.log('Server running on http://localhost:3000');
 });
