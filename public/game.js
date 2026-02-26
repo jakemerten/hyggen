@@ -1,6 +1,6 @@
 /**
- * game.js - Final Multiplayer Version
- * Includes: Phaser 3, Socket.io, Chat, and Name Tags
+ * game.js - Final Master Version
+ * Includes: Phaser 3, Socket.io, Chat, Containers, and Background
  */
 
 // 1. PHASER CONFIGURATION
@@ -15,7 +15,7 @@ const config = {
     },
     input: {
         keyboard: {
-            capture: [37, 38, 39, 40] // Prevent page scrolling with arrows
+            capture: [37, 38, 39, 40] // Prevent browser scroll when using arrows
         }
     },
     scene: { preload: preload, create: create, update: update }
@@ -25,32 +25,24 @@ const game = new Phaser.Game(config);
 
 // 2. PRELOAD ASSETS
 function preload() {
-    // Load your player as before
+    // Background Image
+    this.load.image('background', 'https://play.phaser.io/assets/skies/space3.png');
+
+    // Player Spritesheet
     this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { 
         frameWidth: 32, 
         frameHeight: 48 
     });
-
-    // ADD THIS: Load the background image
-    // I'm using a placeholder meadow, but you can change this URL
-    this.load.image('background', 'https://labs.phaser.io/assets/skies/space3.png'); 
 }
 
 // 3. CREATE GAME WORLD
 function create() {
     const self = this;
 
-    // 1. PLACE THIS HERE (Outside the join listener)
-    // Using a guaranteed-to-work Phaser test image
+    // A. DRAW BACKGROUND FIRST (Bottom Layer)
     this.add.image(400, 300, 'background').setDisplaySize(800, 600);
 
-    // 2. Everything else follows...
-    const joinScreen = document.getElementById('join-screen');
-    const joinButton = document.getElementById('join-button');
-    // ... rest of your code
-}
-
-    // UI References
+    // B. UI REFERENCES
     const joinScreen = document.getElementById('join-screen');
     const joinButton = document.getElementById('join-button');
     const usernameInput = document.getElementById('username-input');
@@ -58,10 +50,11 @@ function create() {
     const chatInput = document.getElementById('chat-input');
     const messageLog = document.getElementById('message-log');
 
+    // C. SETUP GROUPS & INPUTS
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.otherPlayers = this.add.group(); // Group to hold other player containers
+    this.otherPlayers = this.add.group();
 
-    // JOIN LOGIC
+    // D. JOIN BUTTON LOGIC
     joinButton.addEventListener('click', () => {
         const name = usernameInput.value.trim();
 
@@ -104,46 +97,45 @@ function create() {
                 });
             });
 
-            // --- CHAT LISTENERS ---
-
-            chatInput.addEventListener('focus', () => {
-                self.input.keyboard.enabled = false;
-                self.input.keyboard.disableGlobalCapture();
-            });
-
-            chatInput.addEventListener('blur', () => {
-                self.input.keyboard.enabled = true;
-                self.input.keyboard.enableGlobalCapture();
-            });
-
-            chatInput.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    const message = chatInput.value.trim();
-                    if (message !== "") {
-                        self.socket.emit('chatMessage', message);
-                        chatInput.value = "";
-                    }
-                }
-            });
-
+            // --- CHAT MESSAGES ---
             this.socket.on('newMessage', (data) => {
                 const msgElement = document.createElement('div');
                 const now = new Date();
                 const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                msgElement.innerHTML = `<span style="color: #666; font-size: 11px;">[${timeString}]</span> <strong style="color: #0f0;">${data.name}:</strong> ${data.message}`;
+                msgElement.innerHTML = `<span style="color: #888; font-size: 11px;">[${timeString}]</span> <strong style="color: #0f0;">${data.name}:</strong> ${data.message}`;
                 messageLog.appendChild(msgElement);
                 messageLog.scrollTop = messageLog.scrollHeight;
             });
 
         } else {
-            alert("Please enter a name!");
+            alert("Please enter a name to join!");
+        }
+    });
+
+    // E. CHAT FOCUS FIXES
+    chatInput.addEventListener('focus', () => {
+        self.input.keyboard.enabled = false;
+        self.input.keyboard.disableGlobalCapture();
+    });
+
+    chatInput.addEventListener('blur', () => {
+        self.input.keyboard.enabled = true;
+        self.input.keyboard.enableGlobalCapture();
+    });
+
+    chatInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            const message = chatInput.value.trim();
+            if (message !== "" && self.socket) {
+                self.socket.emit('chatMessage', message);
+                chatInput.value = "";
+            }
         }
     });
 }
 
 // 4. THE UPDATE LOOP
 function update() {
-    // Check for playerContainer instead of just player
     if (this.playerContainer) {
         let moved = false;
         const speed = 4;
@@ -160,14 +152,11 @@ function update() {
     }
 }
 
-// 5. HELPER FUNCTIONS (The "Secret Sauce" for Name Tags)
-
+// 5. HELPER FUNCTIONS
 function addPlayer(self, playerInfo) {
-    // Create Sprite
     const sprite = self.add.sprite(0, 0, 'player').setOrigin(0.5, 0.5);
     sprite.setTint(playerInfo.color);
 
-    // Create Text (centered 40 pixels above sprite)
     const nameTag = self.add.text(0, -40, playerInfo.name, {
         fontSize: '14px',
         fill: '#ffffff',
@@ -175,10 +164,7 @@ function addPlayer(self, playerInfo) {
         padding: { x: 4, y: 2 }
     }).setOrigin(0.5, 0.5);
 
-    // Create Container to hold both
     self.playerContainer = self.add.container(playerInfo.x, playerInfo.y, [sprite, nameTag]);
-    
-    // Add physics to the container so it can move
     self.physics.world.enable(self.playerContainer);
 }
 
@@ -195,6 +181,5 @@ function addOtherPlayers(self, playerInfo) {
 
     const container = self.add.container(playerInfo.x, playerInfo.y, [sprite, nameTag]);
     container.playerId = playerInfo.id;
-    
     self.otherPlayers.add(container);
 }
