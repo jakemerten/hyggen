@@ -25,15 +25,32 @@ const game = new Phaser.Game(config);
 
 // 2. PRELOAD ASSETS
 function preload() {
+    // Load your player as before
     this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { 
         frameWidth: 32, 
         frameHeight: 48 
     });
+
+    // ADD THIS: Load the background image
+    // I'm using a placeholder meadow, but you can change this URL
+    this.load.image('background', 'https://labs.phaser.io/assets/skies/space3.png'); 
 }
 
 // 3. CREATE GAME WORLD
 function create() {
     const self = this;
+
+    function create() {
+    const self = this;
+
+    // 1. ADD BACKGROUND FIRST (so it's at the bottom layer)
+    // We place it at 400, 300 because images are placed by their center by default
+    this.add.image(400, 300, 'background').setDisplaySize(800, 600);
+
+    // ... rest of your UI references (joinScreen, joinButton, etc.)
+    const joinScreen = document.getElementById('join-screen');
+    // ...
+}
 
     // UI References
     const joinScreen = document.getElementById('join-screen');
