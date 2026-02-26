@@ -3,174 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hyggen | 8-Bit Remote Hangout</title>
+    <title>Hyggen - Multiplayer Study Room</title>
     
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
 
     <style>
-    /* 1. Global Reset & Body */
+        /* 2. STYLING THE GAME WORLD */
         body {
             margin: 0;
-            background-color: #1a1a1a; /* Deep charcoal */
-            color: #eee;
-            font-family: 'Courier New', Courier, monospace; /* Classic 8-bit vibe */
+            padding: 0;
+            background-color: #1a1a1a;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden; /* Prevent scrollbars */
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            overflow: hidden;
         }
 
-        /* 2. Join Screen (The Entry Gate) */
-        #join-screen {
-            position: fixed;
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%;
-            background: rgba(26, 26, 26, 0.95);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
-        }
-
-        .join-box {
-            background: #333;
-            padding: 40px;
-            border: 4px solid #444;
-            text-align: center;
-            border-radius: 8px;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
-        }
-
-        .join-box h1 {
-            margin-top: 0;
-            color: #00ff00; /* Retro green */
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        /* 3. Input & Button Styles (Used in both screens) */
-        #username-input, #chat-input {
-            background: #111;
-            border: 2px solid #555;
-            color: white;
-            font-family: inherit;
-            outline: none;
-        }
-
-        #username-input {
-            padding: 12px;
-            margin: 20px 0;
-            width: 250px;
-            display: block;
-            font-size: 16px;
-        }
-
-        #join-button {
-            background: #00ff00;
-            color: #000;
-            border: none;
-            padding: 12px 30px;
-            font-family: inherit;
-            font-weight: bold;
-            text-transform: uppercase;
-            cursor: pointer;
-            transition: transform 0.1s, background 0.2s;
-        }
-
-        #join-button:hover {
-            background: #00cc00;
-            transform: scale(1.05);
-        }
-
-        /* 4. The Main Game Layout (Hidden by default) */
-        #hyggen-layout {
-            display: none; /* Changed to 'flex' by JS when joining */
-            flex-direction: row;
-            gap: 15px;
-            background: #333;
-            padding: 15px;
-            border: 4px solid #444;
-            border-radius: 8px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-        }
-
-        /* 5. Game & Chat Components */
+        /* The actual Phaser Canvas */
         #game-container {
+            position: relative;
             width: 800px;
             height: 600px;
-            background-color: #000; /* Matches the "Space" background */
-            margin: 0 auto;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border: 4px solid #333;
         }
 
-        canvas {
-            display: block; /* Removes weird bottom spacing */
-        }
-
-        #chat-window {
-            width: 320px;
-            height: 600px;
+        /* 3. LOGIN / JOIN SCREEN OVERLAY */
+        #join-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
             display: flex;
             flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10; /* Sits on top of the game */
+        }
+
+        #join-screen h1 { color: #0f0; margin-bottom: 20px; text-shadow: 2px 2px #000; }
+
+        input {
+            padding: 12px;
+            font-size: 18px;
+            border: 2px solid #0f0;
             background: #222;
-            border: 2px solid #555;
+            color: #0f0;
+            margin-bottom: 15px;
+            outline: none;
+            width: 250px;
+            text-align: center;
+        }
+
+        button {
+            padding: 10px 30px;
+            font-size: 20px;
+            background: #0f0;
+            color: #000;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:hover { background: #0c0; }
+
+        /* 4. CHAT HUD LAYOUT (Hidden until Join) */
+        #hyggen-layout {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none; /* Shown via JS */
+            flex-direction: column;
+            justify-content: flex-end;
+            pointer-events: none; /* Clicks pass through to the game */
+        }
+
+        #chat-section {
+            width: 300px;
+            background: rgba(0, 0, 0, 0.6);
+            margin: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: auto; /* Allow clicking the chat */
         }
 
         #message-log {
-            flex-grow: 1;
-            padding: 15px;
+            height: 150px;
             overflow-y: auto;
-            font-size: 14px;
-            line-height: 1.6;
-            color: #00ff00; /* Terminal Green */
-            word-wrap: break-word; /* Fixes the "no spaces" layout break */
+            color: #eee;
+            font-size: 13px;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
         }
 
         #chat-input {
-            padding: 15px;
-            border: none;
-            border-top: 2px solid #555;
-            font-size: 14px;
+            width: 100%;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #555;
+            padding: 8px;
+            color: #fff;
+            text-align: left;
         }
-
-        /* 6. Custom Retro Scrollbar */
-        #message-log::-webkit-scrollbar {
-            width: 6px;
-        }
-        #message-log::-webkit-scrollbar-track {
-            background: #111;
-        }
-        #message-log::-webkit-scrollbar-thumb {
-            background: #444;
-        }
-        #message-log::-webkit-scrollbar-thumb:hover {
-            background: #00ff00;
-        }
-</style>
+    </style>
 </head>
 <body>
-<div id="join-screen">
-    <div class="join-box">
-        <h1>Welcome to Hyggen</h1>
-        <p>Enter your name to join the room</p>
-        <input type="text" id="username-input" placeholder="Your Name..." maxlength="12">
-        <button id="join-button">Join Room</button>
-    </div>
-</div>
 
-
-    <div id="hyggen-layout">
-        <div id="game-container"></div>
-
-        <div id="chat-window">
-            <div id="message-log">
-                <div style="color: #888;">Welcome to Hyggen. Work hard, stay cozy.</div>
-            </div>
-            <input type="text" id="chat-input" placeholder="Type a message..." maxlength="100">
+    <div id="game-container">
+        
+        <div id="join-screen">
+            <h1>HYGGEN STUDY ROOM</h1>
+            <input type="text" id="username-input" placeholder="Enter Name..." maxlength="12">
+            <button id="join-button">JOIN ROOM</button>
         </div>
+
+        <div id="hyggen-layout">
+            <div id="chat-section">
+                <div id="message-log"></div>
+                <input type="text" id="chat-input" placeholder="Press Enter to chat..." maxlength="100">
+            </div>
+        </div>
+
     </div>
 
     <script src="game.js"></script>

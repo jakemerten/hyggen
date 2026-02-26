@@ -1,6 +1,6 @@
 /**
- * game.js - Final Master Version
- * Features: Map Loader, Physics, Sync, Interactions, and Chat Fixes
+ * game.js - Final Master Logic
+ * Includes: Map Loader, Physics, Sync, Chat Fixes, and Interactions
  */
 
 const config = {
@@ -12,11 +12,13 @@ const config = {
         default: 'arcade',
         arcade: { 
             gravity: { y: 0 },
-            debug: false // Set to true to see hitboxes
+            debug: false // Set to true to see pink hitboxes for debugging
         }
     },
     input: {
-        keyboard: { capture: [37, 38, 39, 40, 69] } 
+        keyboard: { 
+            capture: [37, 38, 39, 40, 69] // Arrows and 'E'
+        }
     },
     scene: { preload: preload, create: create, update: update }
 };
@@ -25,10 +27,11 @@ const game = new Phaser.Game(config);
 
 // 1. ASSET PRELOAD
 function preload() {
-    this.load.image('floor', 'https://play.phaser.io/assets/sprites/asuna_by_be_honakas.png'); // Placeholder floor
+    // If using local files, use 'assets/filename.png'
+    this.load.image('floor', 'https://play.phaser.io/assets/sprites/asuna_by_be_honakas.png'); 
     this.load.image('chair', 'https://play.phaser.io/assets/sprites/chair.png'); 
     this.load.image('table', 'https://play.phaser.io/assets/sprites/treasure_chest.png'); 
-    this.load.image('fireplace', 'https://play.phaser.io/assets/sprites/phaser-dude.png'); // Placeholder fireplace
+    this.load.image('fireplace', 'https://play.phaser.io/assets/sprites/phaser-dude.png');
     this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { 
         frameWidth: 32, frameHeight: 48 
     });
@@ -40,7 +43,10 @@ function create() {
     const TILE_W = 100;
     const TILE_H = 75;
 
-    // --- A. MAP LOADER GRID ---
+    // --- A. KEYBOARD RELAXATION ---
+    this.input.keyboard.disableGlobalCapture();
+
+    // --- B. MAP LOADER ---
     // 0: Floor, 1: Fireplace, 2: Table, 3: Chair
     const roomMap = [
         [0, 0, 1, 1, 0, 0, 0, 0],
@@ -61,7 +67,6 @@ function create() {
         row.forEach((tile, cIdx) => {
             const x = (cIdx * TILE_W) + (TILE_W / 2);
             const y = (rIdx * TILE_H) + (TILE_H / 2);
-
             this.add.image(x, y, 'floor').setDisplaySize(TILE_W, TILE_H);
 
             if (tile === 1) {
@@ -70,48 +75,55 @@ function create() {
                 this.furniture.create(x, y, 'table').refreshBody();
             } else if (tile === 3) {
                 chairCount++;
-                const chair = this.add.sprite(x, y, 'chair');
-                chair.setData({ id: chairCount, occupied: false });
+                const chair = this.add.sprite(x, y, 'chair').setData({ id: chairCount, occupied: false });
                 this.chairs.add(chair);
             }
         });
     });
 
-    
-
-    // --- B. UI & INPUT SETUP ---
-    this.input.keyboard.disableGlobalCapture();
+    // --- C. INPUTS & HUD ---
     this.cursors = this.input.keyboard.createCursorKeys();
     this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.playerState = 'walking';
 
     this.interactPrompt = this.add.text(0, 0, '', {
-        fontSize: '16px', fill: '#fff', backgroundColor: '#000', padding: { x: 6, y: 4 }
+        fontSize: '16px', fill: '#fff', backgroundColor: '#000', padding: { x: 6, y: 4 }, fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(100).setVisible(false);
 
+    // UI References
     const joinScreen = document.getElementById('join-screen');
     const joinButton = document.getElementById('join-button');
     const usernameInput = document.getElementById('username-input');
     const chatInput = document.getElementById('chat-input');
+    const messageLog = document.getElementById('message-log');
 
-    // --- C. KEYBOARD FOCUS FIXES ---
-    [usernameInput, chatInput].forEach(el => {
-        el.addEventListener('focus', () => { self.input.keyboard.enabled = false; self.input.keyboard.disableGlobalCapture(); });
-        el.addEventListener('blur', () => { self.input.keyboard.enabled = true; self.input.keyboard.enableGlobalCapture(); });
+    // --- D. FOCUS FIXES ---
+    [usernameInput, chatInput].forEach(inputEl => {
+        inputEl.addEventListener('focus', () => {
+            self.input.keyboard.enabled = false;
+            self.input.keyboard.disableGlobalCapture();
+        });
+        inputEl.addEventListener('blur', () => {
+            self.input.keyboard.enabled = true;
+            self.input.keyboard.enableGlobalCapture();
+        });
     });
 
-    // --- D. MULTIPLAYER LOGIC ---
+    // --- E. MULTIPLAYER CONNECTION ---
     this.otherPlayers = this.add.group();
+
     joinButton.addEventListener('click', () => {
         const name = usernameInput.value.trim();
         if (!name) return alert("Enter a name!");
         
         joinScreen.style.display = 'none';
-        this.input.keyboard.enableGlobalCapture();
-        this.socket = io();
-        this.socket.emit('joinRoom', { name: name });
+        document.getElementById('hyggen-layout').style.display = 'flex';
+        self.input.keyboard.enableGlobalCapture();
 
-        this.socket.on('currentPlayers', (players) => {
+        self.socket = io();
+        self.socket.emit('joinRoom', { name: name });
+
+        self.socket.on('currentPlayers', (players) => {
             Object.keys(players).forEach((id) => {
                 if (players[id].id === self.socket.id) {
                     addPlayer(self, players[id]);
@@ -122,7 +134,7 @@ function create() {
             });
         });
 
-        this.socket.on('chairUpdate', (data) => {
+        self.socket.on('chairUpdate', (data) => {
             self.chairs.getChildren().forEach(c => {
                 if (c.getData('id') === parseInt(data.chairId)) {
                     c.setData('occupied', data.occupied);
@@ -131,17 +143,31 @@ function create() {
             });
         });
 
-        this.socket.on('playerMoved', (info) => {
+        self.socket.on('newPlayer', (info) => addOtherPlayers(self, info));
+        self.socket.on('playerMoved', (info) => {
             self.otherPlayers.getChildren().forEach(o => { if (info.id === o.playerId) o.setPosition(info.x, info.y); });
         });
-
-        this.socket.on('playerDisconnected', (id) => {
+        self.socket.on('playerDisconnected', (id) => {
             self.otherPlayers.getChildren().forEach(o => { if (id === o.playerId) o.destroy(); });
         });
+        self.socket.on('newMessage', (data) => {
+            const msg = document.createElement('div');
+            msg.innerHTML = `<strong style="color: #0f0;">${data.name}:</strong> ${data.message}`;
+            messageLog.appendChild(msg);
+            messageLog.scrollTop = messageLog.scrollHeight;
+        });
+    });
+
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && chatInput.value.trim() !== "" && self.socket) {
+            self.socket.emit('chatMessage', chatInput.value);
+            chatInput.value = "";
+            chatInput.blur();
+        }
     });
 }
 
-// 3. GAME LOOP
+// 3. UPDATE LOOP
 function update() {
     if (!this.playerContainer || !this.input.keyboard.enabled) {
         if (this.interactPrompt) this.interactPrompt.setVisible(false);
