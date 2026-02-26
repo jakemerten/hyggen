@@ -10,15 +10,29 @@ app.use(express.static(__dirname + '/public'));
 let players = {}; 
 
 io.on('connection', (socket) => {
-    console.log('A friend has joined Hyggen! ID:', socket.id);
+    
+    socket.on('joinRoom', (data) => {
+        // Create the player only AFTER they join
+        players[socket.id] = {
+            x: 400,
+            y: 300,
+            id: socket.id,
+            name: data.name, // Save the name!
+            color: Math.random() * 0xffffff
+        };
 
-    // 3. Create a new player "entry" with a random position and color
-    players[socket.id] = {
-        x: Math.floor(Math.random() * 400) + 50,
-        y: Math.floor(Math.random() * 300) + 50,
-        id: socket.id,
-        color: Math.random() * 0xffffff 
-    };
+        socket.emit('currentPlayers', players);
+        socket.broadcast.emit('newPlayer', players[socket.id]);
+    });
+
+    // Update your chatMessage listener to use the name
+    socket.on('chatMessage', (message) => {
+        io.emit('newMessage', {
+            name: players[socket.id].name, // Send the real name
+            message: message
+        });
+    });
+});
 
     // 4. Send the list of all current players ONLY to the person who just joined
     socket.emit('currentPlayers', players);
@@ -47,7 +61,6 @@ io.on('connection', (socket) => {
             message: message
         });
     });
-});
 
 // 8. Start the server on port 3000
 server.listen(3000, () => {
