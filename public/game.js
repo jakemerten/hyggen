@@ -1,6 +1,6 @@
 const config = {
     type: Phaser.AUTO,
-    parent: 'game-container', // Matches the ID in your index.html
+    parent: 'game-container',
     width: 800,
     height: 600,
     physics: {
@@ -13,7 +13,6 @@ const config = {
 const game = new Phaser.Game(config);
 
 function preload() {
-    // Using a placeholder 8-bit character sheet
     this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/dude.png', { 
         frameWidth: 32, 
         frameHeight: 48 
@@ -25,9 +24,11 @@ function create() {
     this.socket = io();
     this.otherPlayers = this.physics.add.group();
 
-    // --- 1. MULTIPLAYER SYNCING ---
+    // --- KEYBOARD FIX ---
+    // This tells Phaser: "Don't stop the browser from seeing the Space key."
+    this.input.keyboard.removeCapture(32);
 
-    // Load everyone already in the room
+    // --- MULTIPLAYER SYNC ---
     this.socket.on('currentPlayers', (players) => {
         Object.keys(players).forEach((id) => {
             if (players[id].id === self.socket.id) {
@@ -38,12 +39,10 @@ function create() {
         });
     });
 
-    // Handle new arrivals
     this.socket.on('newPlayer', (playerInfo) => {
         addOtherPlayers(self, playerInfo);
     });
 
-    // Move other people's characters on your screen
     this.socket.on('playerMoved', (playerInfo) => {
         self.otherPlayers.getChildren().forEach((otherPlayer) => {
             if (playerInfo.id === otherPlayer.playerId) {
@@ -52,7 +51,6 @@ function create() {
         });
     });
 
-    // Remove people when they leave
     this.socket.on('playerDisconnected', (playerId) => {
         self.otherPlayers.getChildren().forEach((otherPlayer) => {
             if (playerId === otherPlayer.playerId) {
@@ -61,16 +59,14 @@ function create() {
         });
     });
 
-    // --- 2. CHAT SYSTEM LOGIC ---
-
+    // --- CHAT SYSTEM ---
     const chatInput = document.getElementById('chat-input');
     const messageLog = document.getElementById('message-log');
 
-    // FIX: Stop Phaser from "stealing" keys when you type in the box
+    // Toggle keyboard focus
     chatInput.addEventListener('focus', () => { this.input.keyboard.enabled = false; });
     chatInput.addEventListener('blur', () => { this.input.keyboard.enabled = true; });
 
-    // Handle sending messages
     chatInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             const message = chatInput.value.trim();
@@ -81,15 +77,25 @@ function create() {
         }
     });
 
-    // Handle receiving messages
     this.socket.on('newMessage', (data) => {
         const msgElement = document.createElement('div');
-        msgElement.innerHTML = `<strong>${data.id.substring(0, 5)}:</strong> ${data.message}`;
+        
+        // 1. Get Local Timestamp
+        const now = new Date();
+        const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        // 2. Format message with timestamp and truncated ID
+        // Note: Using a gray color for the timestamp and bold for the ID
+        msgElement.innerHTML = `
+            <span style="color: #666; font-size: 11px;">[${timeString}]</span> 
+            <strong style="color: #0f0;">${data.id.substring(0, 5)}:</strong> 
+            ${data.message}
+        `;
+        
         messageLog.appendChild(msgElement);
-        messageLog.scrollTop = messageLog.scrollHeight; // Auto-scroll
+        messageLog.scrollTop = messageLog.scrollHeight;
     });
 
-    // Setup arrow keys
     this.cursors = this.input.keyboard.createCursorKeys();
 }
 
@@ -98,31 +104,19 @@ function update() {
         let moved = false;
         const speed = 4;
 
-        if (this.cursors.left.isDown) {
-            this.player.x -= speed;
-            moved = true;
-        } else if (this.cursors.right.isDown) {
-            this.player.x += speed;
-            moved = true;
-        }
+        if (this.cursors.left.isDown) { this.player.x -= speed; moved = true; }
+        else if (this.cursors.right.isDown) { this.player.x += speed; moved = true; }
 
-        if (this.cursors.up.isDown) {
-            this.player.y -= speed;
-            moved = true;
-        } else if (this.cursors.down.isDown) {
-            this.player.y += speed;
-            moved = true;
-        }
+        if (this.cursors.up.isDown) { this.player.y -= speed; moved = true; }
+        else if (this.cursors.down.isDown) { this.player.y += speed; moved = true; }
 
-        // Only tell the server if we actually moved
         if (moved) {
             this.socket.emit('playerMovement', { x: this.player.x, y: this.player.y });
         }
     }
 }
 
-// --- 3. HELPER FUNCTIONS ---
-
+// --- HELPERS ---
 function addPlayer(self, playerInfo) {
     self.player = self.physics.add.sprite(playerInfo.x, playerInfo.y, 'player').setOrigin(0.5, 0.5);
     self.player.setTint(playerInfo.color);
