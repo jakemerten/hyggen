@@ -1,5 +1,5 @@
 /**
- * game.js - Final Synced Multiplayer with Interaction & Chat Fix
+ * game.js - Final Synced Multiplayer with Login & Chat Fixes
  */
 
 const config = {
@@ -33,7 +33,11 @@ function preload() {
 function create() {
     const self = this;
 
-    // --- 1. WORLD SETUP ---
+    // --- 1. KEYBOARD RELAXATION (Fixes "E" at Login) ---
+    // Start by letting the browser have the keys so the user can type their name
+    this.input.keyboard.disableGlobalCapture();
+
+    // --- 2. WORLD SETUP ---
     this.add.tileSprite(0, 0, 800, 600, 'floor').setOrigin(0, 0);
     this.furniture = this.physics.add.staticGroup();
     this.furniture.create(400, 300, 'table'); 
@@ -44,7 +48,7 @@ function create() {
     this.chairs.add(c1);
     this.chairs.add(c2);
 
-    // --- 2. INPUTS & PROMPTS ---
+    // --- 3. INPUTS & PROMPTS ---
     this.cursors = this.input.keyboard.createCursorKeys();
     this.interactKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.playerState = 'walking'; 
@@ -53,8 +57,7 @@ function create() {
         fontSize: '16px', fill: '#fff', backgroundColor: '#000', padding: { x: 6, y: 4 }
     }).setOrigin(0.5).setDepth(100).setVisible(false);
 
-    // --- 3. MULTIPLAYER LOGIC ---
-    this.otherPlayers = this.add.group();
+    // --- 4. UI REFERENCES ---
     const joinScreen = document.getElementById('join-screen');
     const joinButton = document.getElementById('join-button');
     const usernameInput = document.getElementById('username-input');
@@ -62,12 +65,29 @@ function create() {
     const chatInput = document.getElementById('chat-input');
     const messageLog = document.getElementById('message-log');
 
+    // --- 5. FOCUS LISTENERS (The "E" Fix) ---
+    const inputs = [usernameInput, chatInput];
+    inputs.forEach(inputField => {
+        inputField.addEventListener('focus', () => {
+            self.input.keyboard.enabled = false;
+            self.input.keyboard.disableGlobalCapture();
+        });
+        inputField.addEventListener('blur', () => {
+            self.input.keyboard.enabled = true;
+            self.input.keyboard.enableGlobalCapture();
+        });
+    });
+
+    // --- 6. JOIN BUTTON LOGIC ---
     joinButton.addEventListener('click', () => {
         const name = usernameInput.value.trim();
         if (!name) return alert("Enter a name!");
 
         joinScreen.style.display = 'none';
         hyggenLayout.style.display = 'flex';
+
+        // Now that the game started, let Phaser capture keys
+        this.input.keyboard.enableGlobalCapture();
 
         this.socket = io();
         this.socket.emit('joinRoom', { name: name });
@@ -107,29 +127,20 @@ function create() {
         });
     });
 
-    // --- 4. CHAT FOCUS FIXES (Critical for 'E' key) ---
-    chatInput.addEventListener('focus', () => {
-        self.input.keyboard.enabled = false;
-        self.input.keyboard.disableGlobalCapture(); // Releases 'E' and arrows to the browser
-    });
-
-    chatInput.addEventListener('blur', () => {
-        self.input.keyboard.enabled = true;
-        self.input.keyboard.enableGlobalCapture(); // Reclaims 'E' and arrows for the game
-    });
+    this.otherPlayers = this.add.group();
 
     chatInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && chatInput.value.trim() !== "" && self.socket) {
             self.socket.emit('chatMessage', chatInput.value);
             chatInput.value = "";
-            chatInput.blur(); // Automatically exit chat after sending
+            chatInput.blur(); // Re-focuses the game
         }
     });
 }
 
-// 5. THE UPDATE LOOP
+// 7. THE UPDATE LOOP
 function update() {
-    // Safety: Stop all game logic if we don't have a player OR if we are chatting
+    // Safety Guard: Stop if chatting or not spawned
     if (!this.playerContainer || !this.input.keyboard.enabled) {
         if (this.interactPrompt) this.interactPrompt.setVisible(false);
         return;
@@ -165,7 +176,7 @@ function update() {
     }
 }
 
-// 6. HELPERS
+// 8. HELPERS
 function addPlayer(self, info) {
     const sprite = self.add.sprite(0, 0, 'player').setOrigin(0.5, 0.5);
     sprite.setTint(info.color);
